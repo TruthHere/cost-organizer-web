@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成本报告处理工具 - Cost Report Processor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部标题 -->
+        <header class="header">
+            <h1><i class="fas fa-calculator"></i> 成本报告处理工具</h1>
+            <p>Cost Report Processor - 智能分类与汇总</p>
+        </header>
+
+        <!-- 文件上传区域 -->
+        <section class="upload-section">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-content">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h3>选择成本报告文件</h3>
+                    <p>支持 .xlsx 格式的Excel文件</p>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+                    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                        <i class="fas fa-folder-open"></i> 选择文件
+                    </button>
+                </div>
+            </div>
+            <div class="file-info" id="fileInfo" style="display: none;">
+                <div class="file-details">
+                    <i class="fas fa-file-excel"></i>
+                    <span id="fileName"></span>
+                    <span id="fileSize"></span>
+                </div>
+                <button class="process-btn" id="processBtn">
+                    <i class="fas fa-cogs"></i> 处理文件
+                </button>
+            </div>
+        </section>
+
+        <!-- 列选择对话框 -->
+        <div class="modal" id="columnModal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modalTitle">选择列</h3>
+                    <span class="close" onclick="closeModal('columnModal')">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <p id="modalDescription"></p>
+                    <div class="column-list" id="columnList"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal('columnModal')">取消</button>
+                    <button class="btn btn-primary" id="selectColumnBtn">选择</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据表格区域 -->
+        <section class="data-section" id="dataSection" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-table"></i> 数据表格</h2>
+                <div class="section-actions">
+                    <button class="btn btn-outline" onclick="previewData()">
+                        <i class="fas fa-eye"></i> 预览数据
+                    </button>
+                    <button class="btn btn-outline" onclick="showRulesPreview()">
+                        <i class="fas fa-list"></i> 预览规则
+                    </button>
+                    <button class="btn btn-outline" onclick="editMapping()">
+                        <i class="fas fa-edit"></i> 编辑规则
+                    </button>
+                    <button class="btn btn-outline" onclick="refreshMatching()">
+                        <i class="fas fa-sync"></i> 刷新匹配
+                    </button>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table class="data-table" id="dataTable">
+                    <thead>
+                        <tr>
+                            <th width="80">操作</th>
+                            <th width="500">合同内容</th>
+                            <th width="150">合同金额</th>
+                            <th width="250">分类</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- 数据行将通过JavaScript动态生成 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-footer">
+                <div class="table-stats">
+                    <span id="rowCount">0 行数据</span>
+                    <span id="totalAmount">总金额: ¥0</span>
+                </div>
+                <div class="table-actions">
+                    <button class="btn btn-outline" onclick="restoreDeletedRows()">
+                        <i class="fas fa-undo"></i> 恢复删除行
+                    </button>
+                    <button class="btn btn-primary" onclick="exportResults()">
+                        <i class="fas fa-download"></i> 导出结果
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 分类选择下拉菜单 -->
+        <div class="dropdown-menu" id="categoryDropdown" style="display: none;">
+            <div class="dropdown-header">
+                <span>选择分类</span>
+                <button class="close-btn" onclick="closeDropdown()">&times;</button>
+            </div>
+            <div class="dropdown-content" id="dropdownContent">
+                <!-- 分类选项将通过JavaScript动态生成 -->
+            </div>
+            <div class="dropdown-footer">
+                <button class="btn btn-sm btn-outline" onclick="clearCategory()">清除分类</button>
+            </div>
+        </div>
+
+        <!-- 格式设置对话框 -->
+        <div class="modal" id="formatModal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>导出格式设置</h3>
+                    <span class="close" onclick="closeModal('formatModal')">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="format-section">
+                        <h4>大类行格式 (M开头)</h4>
+                        <div class="format-options">
+                            <label>
+                                <input type="checkbox" id="majorBold" checked> 加粗
+                            </label>
+                            <label>
+                                字体大小: <input type="number" id="majorSize" value="12" min="8" max="16">
+                            </label>
+                            <label>
+                                背景色: 
+                                <select id="majorBgColor">
+                                    <option value="">无</option>
+                                    <option value="E6F3FF">浅蓝色</option>
+                                    <option value="E8F5E8">浅绿色</option>
+                                    <option value="FFF9E6">浅黄色</option>
+                                    <option value="F8F9FA">浅灰色</option>
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="format-section">
+                        <h4>小类行格式 (T开头)</h4>
+                        <div class="format-options">
+                            <label>
+                                <input type="checkbox" id="minorBold"> 加粗
+                            </label>
+                            <label>
+                                字体大小: <input type="number" id="minorSize" value="11" min="8" max="16">
+                            </label>
+                            <label>
+                                背景色: 
+                                <select id="minorBgColor">
+                                    <option value="">无</option>
+                                    <option value="E6F3FF">浅蓝色</option>
+                                    <option value="E8F5E8">浅绿色</option>
+                                    <option value="FFF9E6">浅黄色</option>
+                                    <option value="F8F9FA" selected>浅灰色</option>
+                                </select>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="minorIndent" checked> 名称缩进显示
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal('formatModal')">取消</button>
+                    <button class="btn btn-primary" onclick="applyFormatAndExport()">应用格式并导出</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 规则编辑对话框 -->
+        <div class="modal" id="rulesModal" style="display: none;">
+            <div class="modal-content large">
+                <div class="modal-header">
+                    <h3>编辑分类映射规则</h3>
+                    <span class="close" onclick="closeModal('rulesModal')">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <p class="modal-description">请为每个分类编辑其关键词列表（用逗号分隔关键词）：</p>
+                    <div class="rules-container" id="rulesContainer">
+                        <!-- 规则编辑区域将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal('rulesModal')">取消</button>
+                    <button class="btn btn-primary" onclick="saveRules()">保存更改</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 恢复删除行对话框 -->
+        <div class="modal" id="restoreModal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>恢复删除的行</h3>
+                    <span class="close" onclick="closeModal('restoreModal')">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="restore-table-container">
+                        <table class="restore-table" id="restoreTable">
+                            <thead>
+                                <tr>
+                                    <th>合同内容</th>
+                                    <th>合同金额</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="restoreTableBody">
+                                <!-- 删除的行数据将通过JavaScript动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal('restoreModal')">关闭</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 加载指示器 -->
+        <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>处理中...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入必要的JavaScript库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html> 
